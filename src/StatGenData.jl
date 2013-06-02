@@ -2,7 +2,7 @@ using DataFrames
 
 module StatGenData
     using DataFrames
-#    import Base.size
+    import Base: getindex, size
 
     export
       GenData,

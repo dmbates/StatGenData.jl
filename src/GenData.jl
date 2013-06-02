@@ -28,11 +28,21 @@ function GenData(bnm::ASCIIString) # bnm = base file name without extension
     # snpinfo is a data frame with columns
     #c1=chrom,c2=loc,c3=rs,c4=MajorAllele,c5=minor allele,c6=MAdirection(1,2),c7=MAF
     #c8=Hom11count,c9=het12count,c10=hom22count,c11=#missing
+    major = typeof(snp[1,5]) <: Number ? int8(snp[:,5]) :
+            typeof(snp[1,5]) <: String ?
+            compact(PooledDataArray(convert(Vector{typeof(snp[1,5])},snp[:,5]),
+                                    trues(nsnp),Uint8)) :
+            error("type of snpinfo column 5, $(typeof(snp[1,5])), is neither Numeric nor String") 
+    minor = typeof(snp[1,6]) <: Number ? int8(snp[:,6]) :
+            typeof(snp[1,6]) <: String ?
+            compact(PooledDataArray(convert(Vector{typeof(snp[1,6])},snp[:,6]),
+                                    trues(nsnp),Uint8)) :
+            error("type of snpinfo column 6, $(typeof(snp[1,6])), is neither Numeric nor String")   
     snpinfo = DataFrame(chr = int8(snp[:,1]),      # chromosome number
                         loc = int32(snp[:,4]),     # location
                         rs  = snp[:,2],
-                        major = int8(snp[:,5]),
-                        minor = int8(snp[:,6]))
+                        major = major,
+                        minor = minor)
     faminfo = DataFrame(ind = int([1:nsubj]),
                         fID = fam[:,1],
                         ID  = int(fam[:,2]),
@@ -43,19 +53,17 @@ function GenData(bnm::ASCIIString) # bnm = base file name without extension
     GenData(snpinfo, faminfo, bb)
 end
 
-## FIXME: Haven't handled the pairs, if any, in the trailing byte.
-## Need to check which end the active bit pairs start from.
-function bedfreq(g::GenData)
-    b = g.gendat
-    m,n = size(b)
-    addnl = rem(size(g.snpinfo,1),4) # number of pairs in the trailing byte
-    if bool(addnl) m -= 1 end   # m is now the number of full bytes per column
-    counts = zeros(Int, 4, n)
-    for j in 1:n
-        for i in 1:m
-            bij = b[i,j]
-            for k in 0:2:6 counts[1 + (0x03 & (bij>>k)), j] += 1 end
-        end
+size(g::GenData) = size(g.faminfo,1), size(g.snpinfo,1)
+function getindex(g::GenData, i::Integer, j::Integer)
+    if !(1 <= i <= size(g.faminfo, 1) && 1 <= j <= size(g.snpinfo, 1))
+        error(BoundsError)
     end
+    int(0x03 & (g.gendat[div(i-1,4) + 1,j]>>(rem(i,4)<<1)))
+end
+
+function bedfreq(g::GenData)
+    m,n = size(g)
+    counts = zeros(Int, 4, n)
+    for j in 1:n, i in 1:m counts[1 + g[i,j], j] += 1 end
     counts
 end
