@@ -38,8 +38,9 @@ function GenData(bnm::ASCIIString) # bnm = base file name without extension
             compact(PooledDataArray(convert(Vector{typeof(snp[1,6])},snp[:,6]),
                                     trues(nsnp),Uint8)) :
             error("type of snpinfo column 6, $(typeof(snp[1,6])), is neither Numeric nor String")   
+    loc = max(snp[:,4]) < typemax(Int) ? int(snp[:,4]) : snp[:,4]
     snpinfo = DataFrame(chr = int8(snp[:,1]),      # chromosome number
-                        loc = int32(snp[:,4]),     # location
+                        loc = loc,                 # location
                         rs  = snp[:,2],
                         major = major,
                         minor = minor)
@@ -48,8 +49,8 @@ function GenData(bnm::ASCIIString) # bnm = base file name without extension
                         ID  = int(fam[:,2]),
                         pID = int(fam[:,3]),
                         mID = int(fam[:,4]),
-                        sex = int8(fam[:,5]),
-                        phe = int8(fam[:,6]))
+                        sex = int8(fam[:,5]), # convert to PooledDataArray with levels "M" and "F"
+                        phe = int8(fam[:,6])) # check for and encode missing data values
     GenData(snpinfo, faminfo, bb)
 end
 
