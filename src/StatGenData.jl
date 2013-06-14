@@ -6,6 +6,7 @@ module StatGenData
 
     export
       GenData,
+      GenData2,
 
       bedfreq
 

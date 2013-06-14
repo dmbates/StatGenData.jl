@@ -115,31 +115,30 @@ function bedfreq(g::GenData)
     counts
 end
 
+# ival returns the 0,1,2,3 snp value at offset i from the byte pointer
+ival(p::Ptr{Uint8},i::Integer) = 0<=i ? (unsafe_load(p,i>>2+1)>>(2i&0x06))&0x03 : throw(DomainError)
+
 function bedfreq(b::Matrix{Uint8},ns::Integer)
     m,n = size(b)
-    if div(ns+3,4) != m error("ns = $ns should be in [$(4m-3),$(4m)] for size(b) = $(size(b))") end
+    div(ns+3,4) == m || error("ns = $ns should be in [$(4m-3),$(4m)] for size(b) = $(size(b))")
     counts = zeros(Int, 4, n)
     bpt = convert(Ptr{Uint8},b)
     for j in 1:n
         ptj = bpt + (j-1)*m
-        for i in 1:ns
-            ii = 1 + (0x03 & (unsafe_load(ptj, div(i-1,4)+1)>>(rem(i,4)<<1)))
-            counts[ii,j] += 1
-        end
+        ## the ival function is inlined explicitly
+        for i in 0:(ns-1) counts[1+(unsafe_load(ptj,i>>2+1)>>(2i&0x06))&0x03,j] += 1 end
     end
     counts
 end
 
 function GenData2(bnm::ASCIIString)     # bnm = basename of .bed, .bim and .fam files
-    # counting the lines in the .bim and .fam files to get the dimensions (will clean this up)
-    nsnp = int(split(readall(`wc -l $(string(bnm,".bim"))`))[1])
-    nsubj = int(split(readall(`wc -l $(string(bnm,".fam"))`))[1])
+    # count the lines in the .bim and .fam files to get the dimensions
+    nsnp = countlines(string(bnm,".bim")); nsubj = countlines(string(bnm,".fam"))
     bednm = string(bnm,".bed")
     s = open(bednm)
-    b1 = read(s,Uint8); b2 = read(s,Uint8); b3 = read(s,Uint8)
-    if b1 != 0x6c || b2 != 0x1b error("wrong magic number in file $bednm") end
-    if b3 != 1 error(".bed file, $bednm, is not in correct orientation") end
-    m = div(nsubj+3,4)
+    read(s,Uint8) == 0x6c && read(s,Uint8) == 0x1b || error("wrong magic number in file $bednm")
+    read(s,Uint8) == 1 || error(".bed file, $bednm, is not in correct orientation")
+    m = div(nsubj+3,4) # of bytes per col., nsubj rounded up to next multiple of 4
     bb = mmap_array(Uint8, (m,nsnp), s)
     GenData2(bb,nsubj,bedfreq(bb,nsubj)')
 end
