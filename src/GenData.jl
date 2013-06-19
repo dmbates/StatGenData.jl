@@ -121,14 +121,14 @@ ival(p::Ptr{Uint8},i::Integer) = 0<=i ? (unsafe_load(p,i>>2+1)>>(2i&0x06))&0x03 
 function bedfreq(b::Matrix{Uint8},ns::Integer)
     m,n = size(b)
     div(ns+3,4) == m || error("ns = $ns should be in [$(4m-3),$(4m)] for size(b) = $(size(b))")
-    counts = zeros(Int, 4, n)
+    cc = zeros(Int, 4, n)
     bpt = convert(Ptr{Uint8},b)
-    for j in 1:n
-        ptj = bpt + (j-1)*m
+    for j in 0:(n-1)
+        pj = bpt + j*m
         ## the ival function is inlined explicitly
-        for i in 0:(ns-1) counts[1+(unsafe_load(ptj,i>>2+1)>>(2i&0x06))&0x03,j] += 1 end
+        for i in 0:(ns-1) cc[1+(unsafe_load(pj,i>>2+1)>>(2i&0x06))&0x03,1+j] += 1 end
     end
-    counts
+    cc
 end
 
 function GenData2(bnm::ASCIIString)     # bnm = basename of .bed, .bim and .fam files
@@ -140,5 +140,6 @@ function GenData2(bnm::ASCIIString)     # bnm = basename of .bed, .bim and .fam 
     read(s,Uint8) == 1 || error(".bed file, $bednm, is not in correct orientation")
     m = div(nsubj+3,4) # of bytes per col., nsubj rounded up to next multiple of 4
     bb = mmap_array(Uint8, (m,nsnp), s)
+    close(s)
     GenData2(bb,nsubj,bedfreq(bb,nsubj)')
 end
